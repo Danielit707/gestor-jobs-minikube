@@ -24,14 +24,14 @@ Esas capas quedan para la versión completa.
 
 Se entrega como infraestructura, ya funcional:
 
-- `imagenes/`: tres imágenes (Python, Java y C). Las tres implementan el mismo conjunto de
-  tareas y el mismo contrato: reciben `<tarea> <N>` como argumentos, escriben logs en
-  stdout y cierran con un JSON de una línea.
+- `imagenes/`: tres imágenes (Python, Java y C). Las tres implementan las cuatro tareas
+  comunes y el mismo contrato: reciben `<tarea> <N>` como argumentos, escriben logs en
+  stdout y cierran con un JSON de una línea. Python incluye además la tarea `primos`.
 - `catalogo/tareas.json`: catálogo modificable de lenguajes, imágenes y tareas admitidas.
 - `k8s/00-namespace.yaml`: namespace dedicado para los Jobs.
 - `scripts/preparar-imagenes.ps1`: construye las imágenes y las carga en Minikube.
 
-Construye el grupo, sobre el esqueleto de `entrega/`:
+Componentes implementados por el grupo:
 
 - `entrega/gestor_jobs.py`, un programa de menú con cinco capacidades:
   1. selección de lenguaje, tarea y complejidad;
@@ -40,11 +40,10 @@ Construye el grupo, sobre el esqueleto de `entrega/`:
   4. consulta de los logs de una tarea;
   5. limpieza de las tareas ya terminadas, para dejar el namespace en orden.
 
-- Una tarea adicional, en el lenguaje que el grupo prefiera. Implica ajustar el programa
-  del contenedor que corresponda, reconstruir y cargar la imagen, añadir la tarea en
-  `catalogo/tareas.json` y su fila en la tabla `TAMANOS` del gestor.
+- Una tarea adicional llamada `primos`, disponible en Python. Está integrada en el
+  ejecutor del contenedor, el catálogo y la tabla `TAMANOS` del gestor.
 
-### Las tareas que traen los contenedores
+### Las tareas de los contenedores
 
 | tarea | qué hace | parámetro N |
 |---|---|---|
@@ -52,10 +51,32 @@ Construye el grupo, sobre el esqueleto de `entrega/`:
 | `ordenar` | genera N enteros aleatorios y los ordena, verificando el resultado | cantidad de elementos |
 | `fib` | calcula fib(N) recursivamente, sin memoización: satura una CPU | N |
 | `matriz` | multiplica dos matrices densas de N×N con triple bucle | dimensión |
+| `primos` | cuenta los números primos menores o iguales que N con la criba de Eratóstenes | límite superior |
 
-Las cuatro están implementadas en los tres lenguajes, así que la misma tarea puede
+Las primeras cuatro están implementadas en los tres lenguajes, así que la misma tarea puede
 compararse entre Python, Java y C. La tarea `hola` es la más reveladora en esa
 comparación: el arranque de la JVM se nota frente a Python y a un binario de C.
+`primos` es la tarea adicional del proyecto y está disponible en la imagen Python.
+
+## Implementación del gestor
+
+`entrega/gestor_jobs.py` carga el catálogo y presenta un menú para crear, listar,
+consultar logs y limpiar Jobs del namespace `estudiantes-202630`. La creación usa
+el cliente oficial de Kubernetes para Python (`BatchV1Api`), define los recursos
+de CPU y memoria según el nivel elegido y pasa la tarea y su parámetro N como
+argumentos al contenedor. Los Pods usan `imagePullPolicy: Never`, porque las imágenes se construyen directamente en el
+runtime del clúster Minikube.
+
+El estado se obtiene de los contadores del Job (`active`, `succeeded` y `failed`).
+Para consultar logs, el gestor localiza el Pod mediante la etiqueta
+`job-name=<nombre-del-job>` y lee su salida con `CoreV1Api`. La limpieza elimina
+solo Jobs que ya terminaron y aplica propagación en segundo plano para borrar
+también sus Pods.
+
+La tarea adicional `primos` está implementada en `imagenes/python/tareas.py` con
+la criba de Eratóstenes. Sus tamaños son 100 000, 1 000 000 y 5 000 000 para
+los niveles bajo, medio y alto, respectivamente. Tras modificar una imagen,
+ejecuta de nuevo `.\scripts\preparar-imagenes.ps1` para reconstruirla en Minikube.
 
 ### Qué significa la complejidad
 
@@ -70,10 +91,10 @@ Por eso un nivel alto no sólo tarda más: también reserva más CPU y permite m
 Bajar el `mem_limit` por debajo de lo que necesita la tarea es la forma de provocar un
 `OOMKilled` y verlo reflejado en el estado del Job.
 
-El esqueleto ya trae la estructura del programa y el andamiaje del cliente de Kubernetes
-armado: el bucle del menú, los listados numerados, la carga del catálogo, el objeto `Job`
-con sus clases anidadas y la búsqueda del Pod por etiqueta. Lo pendiente está marcado con `TODO` y con `...` en los
-campos a completar, de modo que el trabajo sea entender el `Job` y no pelear con Python.
+El gestor implementa el menú, la carga del catálogo, la creación de objetos `Job` con el
+cliente oficial, la consulta de estado y logs, y la eliminación de Jobs completados o
+fallidos. Así, el foco de la práctica es entender el recorrido de Kubernetes y los campos
+del `Job`, no invocar comandos externos desde Python.
 
 No está permitido resolver el proyecto invocando `kubectl` desde Python: el `Job` debe
 crearse con el cliente `kubernetes`.
@@ -100,10 +121,9 @@ pip install -r .\entrega\requirements.txt
 Los nombres de imagen son deliberadamente locales (`kubernates-202630-*`) y no se publica
 ninguna imagen durante el proyecto.
 
-`preparar-imagenes.ps1` construye directamente contra el demonio Docker de Minikube, así
-que **hay que volver a ejecutarlo cada vez que se cambie el programa de un contenedor**.
-No usen `minikube image load` para actualizar una imagen: no reemplaza un tag que ya
-existe, y el clúster seguiría ejecutando la versión anterior sin avisar.
+`preparar-imagenes.ps1` construye las imágenes directamente en el runtime del clúster
+mediante `minikube image build` (compatible con Docker y containerd), así que **hay que
+volver a ejecutarlo cada vez que se cambie el programa de un contenedor**.
 
 ## Ejecución
 
@@ -131,7 +151,7 @@ La opción 3 deja elegir una de esas tareas y muestra la salida de su contenedor
 opción 4 borra las tareas ya terminadas —completadas o fallidas— tras pedir confirmación,
 y deja intactas las que siguen corriendo.
 
-Prueben las tres tareas incluidas variando la complejidad, y contrasten lo que muestra el
+Prueben las tareas incluidas variando la complejidad, y contrasten lo que muestra el
 menú con lo que reporta el clúster:
 
 ```powershell
@@ -148,4 +168,5 @@ curso. La entrega vence **antes de la clase de la semana 12**.
    de la semana 12.
 2. En el README del repositorio se debe explicar la implementación.
 3. En el README se debe agregar un link a un video de YouTube con el demo del proyecto.
+   **Pendiente:** agregar aquí el enlace cuando el grupo publique el video.
 4. El grupo completo debe estar disponible para defender la entrega.

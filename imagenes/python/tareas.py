@@ -7,6 +7,7 @@ Contrato, identico en las tres imagenes:
   exit code: 0 = exito, != 0 = fallo (deja el Job en Failed)
 """
 import json
+import math
 import os
 import platform
 import random
@@ -57,11 +58,31 @@ def matriz(n):
     return {"n": n, "traza": round(sum(c[i][i] for i in range(n)), 6)}
 
 
+def primos(n):
+    if n < 0:
+        raise ValueError("N debe ser un entero no negativo")
+
+    print(f"Contando numeros primos menores o iguales que {n}...")
+    es_primo = bytearray(b"\x01") * (n + 1)
+    es_primo[0] = 0
+    if n >= 1:
+        es_primo[1] = 0
+    for candidato in range(2, math.isqrt(n) + 1):
+        if es_primo[candidato]:
+            inicio = candidato * candidato
+            cantidad = (n - inicio) // candidato + 1
+            es_primo[inicio : n + 1 : candidato] = b"\x00" * cantidad
+
+    cantidad_primos = sum(es_primo)
+    return {"n": n, "cantidad_primos": cantidad_primos}
+
+
 TAREAS = {
     "hola": hola,
     "ordenar": ordenar,
     "fib": fib,
     "matriz": matriz,
+    "primos": primos,
 }
 
 
