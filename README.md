@@ -167,6 +167,5 @@ curso. La entrega vence **antes de la clase de la semana 12**.
 1. Link al repositorio público entregado por la actividad del catálogo, antes de la clase
    de la semana 12.
 2. En el README del repositorio se debe explicar la implementación.
-3. En el README se debe agregar un link a un video de YouTube con el demo del proyecto.
-   **Pendiente:** agregar aquí el enlace cuando el grupo publique el video.
+3. En el README se debe agregar un link a un video de YouTube con el demo del proyecto. Link al video: https://youtu.be/-5i_gXEvrD8.
 4. El grupo completo debe estar disponible para defender la entrega.
